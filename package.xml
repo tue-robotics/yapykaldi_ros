@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>yapykaldi_ros</name>
+  <version>0.1.0</version>
+  <description>ROS wrapper for yapykaldi</description>
+
+  <maintainer email="ar13pit@gmail.com">Arpit Aggarwal</maintainer>
+
+  <license>GPL</license>
+
+  <url type="website">https://github.com/tue-robotics/yapykaldi_ros</url>
+
+  <author email="ar13pit@gmail.com">Arpit Aggarwal</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>grammar_parser</depend>
+  <depend>hmi</depend>
+  <depend>python-future</depend>
+  <depend>python-yapykaldi</depend>
+  <depend>rospy</depend>
+
+</package>
