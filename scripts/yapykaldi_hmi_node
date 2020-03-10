@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+#
+# ROS Node and HMI Client of yapykaldi ASR app
+
+import rospy
+from yapykaldi_ros import HMIServerYapykaldi
+
+
+if __name__ == "__main__":
+
+    rospy.init_node('yapykaldi_hmi_node')
+    rospy.loginfo("Creating HMIServerYapykaldi")
+    c = HMIServerYapykaldi()
