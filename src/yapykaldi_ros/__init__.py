@@ -1,0 +1,1 @@
+from .hmi_server_yapykaldi import HMIServerYapykaldi
