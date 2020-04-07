@@ -5,9 +5,17 @@
 import rospy
 from yapykaldi_ros import HMIServerYapykaldi
 
-
 if __name__ == "__main__":
 
     rospy.init_node('yapykaldi_hmi_node')
     rospy.loginfo("Creating HMIServerYapykaldi")
     c = HMIServerYapykaldi()
+
+    rospy.loginfo("Registering HMIServerYapykaldi shutdown hook")
+
+    def shutdown():
+        rospy.loginfo("Shutting down HMIServerYapykaldi")
+        c.stop()
+
+    rospy.on_shutdown(shutdown)
+    rospy.loginfo("Registered HMIServerYapykaldi shutdown hook")
