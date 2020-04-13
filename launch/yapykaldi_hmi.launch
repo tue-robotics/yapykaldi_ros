@@ -9,7 +9,7 @@
         <node name="string_topic_answerer" pkg="hmi" type="string_topic_answerer" output="$(arg output)"/>
 
         <node name="yapykaldi_hmi_node" pkg="yapykaldi_ros" type="yapykaldi_hmi_node" output="$(arg output)">
-            <param name="~/model_dir" value="~/git/kaldi/data/kaldi-generic-en-tdnn_fl-latest"/>
+            <param name="~/model_dir" value="~/git/yapykaldi/data/kaldi-generic-en-tdnn_fl-latest"/>
         </node>
 
     </group> <!-- ns="hmi" -->
