@@ -11,11 +11,12 @@ if __name__ == "__main__":
     rospy.loginfo("Creating HMIServerYapykaldi")
     c = HMIServerYapykaldi()
 
-    rospy.loginfo("Registering HMIServerYapykaldi shutdown hook")
+    rospy.logdebug("Registering HMIServerYapykaldi shutdown hook")
 
     def shutdown():
         rospy.loginfo("Shutting down HMIServerYapykaldi")
         c.stop()
 
     rospy.on_shutdown(shutdown)
-    rospy.loginfo("Registered HMIServerYapykaldi shutdown hook")
+    rospy.logdebug("Registered HMIServerYapykaldi shutdown hook")
+    rospy.spin()
