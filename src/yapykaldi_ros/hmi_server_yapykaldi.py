@@ -3,7 +3,6 @@ from hmi import AbstractHMIServer, HMIResult
 from hmi.common import parse_sentence, verify_grammar
 import os
 import rospy
-from std_msgs.msg import String
 from threading import Event
 from yapykaldi.asr import Asr
 from yapykaldi.audio_handling.sources import WaveFileSource, PyAudioMicrophoneSource
