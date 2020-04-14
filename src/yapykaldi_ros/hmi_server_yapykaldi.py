@@ -4,13 +4,17 @@ from hmi.common import parse_sentence, verify_grammar
 import os
 import rospy
 from std_msgs.msg import String
-from yapykaldi.asr import Asr, WaveFileStreamer
+from threading import Event
+from yapykaldi.asr import Asr
+from yapykaldi.audio_handling.sources import WaveFileSource, PyAudioMicrophoneSource
+from yapykaldi.audio_handling.sinks import WaveFileSink
 
 
 class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
-        stream = WaveFileStreamer("/home/loy/output.wav")
+        # stream = WaveFileSource("/home/loy/output.wav")
+        stream = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
         rospy.loginfo("Setting up ASR, may take a while...")
         self._asr = Asr(model_dir=os.path.expanduser(rospy.get_param('~model_dir')),
                         model_type=rospy.get_param('~model_type', 'nnet3'),
