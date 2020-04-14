@@ -41,10 +41,31 @@ class HMIServerYapykaldi(AbstractHMIServer):
         rospy.loginfo("Got a string: '{}'".format(string))
         self._completed_string = string.strip()  # Using a threading primitive for this would be nicer!
 
+    def _voice_timer_elapsed(self, *args):
+        rospy.logdebug("Voice timer elapsed")
+        self._asr.stop()
+        self._completed_string = self._partial_string
+        self.timeout_timer.shutdown()
+
     def string_partially_recognized_callback(self, string):
         # type: (str) -> None
-        rospy.loginfo("Got an intermediate result string: '{}'".format(string))
+        # rospy.loginfo("Got an intermediate result string: '{}'".format(string))
+
         new = string.strip()
+        same = new == self._partial_string
+        if not same:
+            rospy.loginfo("Heard something new: '{}'".format(new))
+            if self.timeout_timer:
+                self.timeout_timer.shutdown()
+
+        else:
+            rospy.logdebug("This string is NOT new: '{}' == '{}'"
+                .format(new, self._partial_string))
+            if self._partial_string:
+                self.timeout_timer = rospy.Timer(rospy.Duration(3),
+                                                 self._voice_timer_elapsed,
+                                                 oneshot=True)
+            # self._voice_timer_elapsed(None)
         self._partial_string = new
 
     def _determine_answer(self, description, grammar, target, is_preempt_requested):
@@ -60,12 +81,19 @@ class HMIServerYapykaldi(AbstractHMIServer):
         """
         rospy.loginfo("Need an answer from ASR for '{}'".format(description))
         self._completed_string = None
+        self._speech_stopped.clear()
+        if self.timeout_timer:
+            self.timeout_timer.shutdown()
+        self.timeout_timer = None
 
         verify_grammar(grammar)
 
         self._asr.start()
 
-        while not rospy.is_shutdown() and not is_preempt_requested() and not self._completed_string and not self._speech_stopped.is_set():
+        while not rospy.is_shutdown() and \
+                not is_preempt_requested() and \
+                not self._completed_string and \
+                not self._speech_stopped.is_set():
             rospy.logdebug("Sleep")
             rospy.sleep(.1)
 
