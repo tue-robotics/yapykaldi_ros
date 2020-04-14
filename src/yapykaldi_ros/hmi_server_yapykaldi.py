@@ -20,7 +20,11 @@ class HMIServerYapykaldi(AbstractHMIServer):
         self._asr.register_fully_recognized_callback(self.string_fully_recognized_callback)
         self._asr.register_partially_recognized_callback(self.string_partially_recognized_callback)
 
-        self._string = ""
+        self._partial_string = ""
+        self._completed_string = ""
+        self._speech_stopped = Event()
+
+        self.timeout_timer = None
 
         super(HMIServerYapykaldi, self).__init__(rospy.get_name())
 
@@ -31,11 +35,13 @@ class HMIServerYapykaldi(AbstractHMIServer):
     def string_fully_recognized_callback(self, string):
         # type: (str) -> None
         rospy.loginfo("Got a string: '{}'".format(string))
-        self._string = string.strip()  # Using a threading primitive for this would be nicer!
+        self._completed_string = string.strip()  # Using a threading primitive for this would be nicer!
 
     def string_partially_recognized_callback(self, string):
         # type: (str) -> None
         rospy.loginfo("Got an intermediate result string: '{}'".format(string))
+        new = string.strip()
+        self._partial_string = new
 
     def _determine_answer(self, description, grammar, target, is_preempt_requested):
         # type: (str, str, str, Func) -> None
@@ -49,13 +55,13 @@ class HMIServerYapykaldi(AbstractHMIServer):
         :param is_preempt_requested: (callable) checks whether a preempt is requested by the hmi client
         """
         rospy.loginfo("Need an answer from ASR for '{}'".format(description))
-        self._string = None
+        self._completed_string = None
 
         verify_grammar(grammar)
 
         self._asr.start()
 
-        while not rospy.is_shutdown() and not is_preempt_requested() and not self._string:
+        while not rospy.is_shutdown() and not is_preempt_requested() and not self._completed_string and not self._speech_stopped.is_set():
             rospy.logdebug("Sleep")
             rospy.sleep(.1)
 
@@ -64,14 +70,14 @@ class HMIServerYapykaldi(AbstractHMIServer):
             self._asr.stop()
             return None
 
-        rospy.loginfo("Received string: '%s'", self._string)
+        rospy.loginfo("Received string: '%s'", self._completed_string)
 
-        semantics = parse_sentence(self._string, grammar, target)
+        semantics = parse_sentence(self._completed_string, grammar, target)
 
         rospy.loginfo("Parsed semantics: %s", semantics)
 
-        result = HMIResult(self._string, semantics)
+        result = HMIResult(self._completed_string, semantics)
         self._asr.stop()
-        self._string = None
+        self._completed_string = None
 
         return result
