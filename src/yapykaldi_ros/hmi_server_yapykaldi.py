@@ -1,7 +1,6 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 from hmi import AbstractHMIServer, HMIResult
 from hmi.common import parse_sentence, verify_grammar
-import logging
 import os
 import rospy
 from threading import Event
@@ -9,19 +8,14 @@ from yapykaldi.asr import Asr
 from yapykaldi.audio_handling.sources import WaveFileSource, PyAudioMicrophoneSource
 from yapykaldi.audio_handling.sinks import WaveFileSink
 
-from .rospy_logging import RospyLogHandler
-
-rpl = RospyLogHandler()
-rpl.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
-root.addHandler(rpl)
+from .rospy_logging import route_logger_to_ros
 
 
 class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
 
+        route_logger_to_ros('yapykaldi')
         # self.stream = WaveFileSource("/home/loy/output.wav")
         rospy.loginfo("Creating audio stream")
         self.stream = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
