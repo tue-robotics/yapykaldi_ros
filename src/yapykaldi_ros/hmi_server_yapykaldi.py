@@ -22,10 +22,12 @@ class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
 
-        self.stream = WaveFileSource("/home/loy/output.wav")
-        # self.stream = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
+        # self.stream = WaveFileSource("/home/loy/output.wav")
+        rospy.loginfo("Creating audio stream")
+        self.stream = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
         rospy.loginfo("Opening audio stream")
         self.stream.open()
+
         rospy.loginfo("Setting up ASR, may take a while...")
         self._asr = Asr(model_dir=os.path.expanduser(rospy.get_param('~model_dir')),
                         model_type=rospy.get_param('~model_type', 'nnet3'),
@@ -46,6 +48,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
     def stop(self):
         rospy.loginfo("Stopping {}".format(self))
         self._asr.stop()
+        self.stream.close()
 
     def string_fully_recognized_callback(self, string):
         # type: (str) -> None
@@ -104,6 +107,8 @@ class HMIServerYapykaldi(AbstractHMIServer):
         verify_grammar(grammar)
 
         self._asr.start()
+
+        self._asr.recognize()
 
         while not rospy.is_shutdown() and \
                 not is_preempt_requested() and \
