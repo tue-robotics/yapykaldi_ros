@@ -15,17 +15,17 @@ class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
 
-        route_logger_to_ros('yapykaldi')
+        # route_logger_to_ros('yapykaldi')
         # self.stream = WaveFileSource("/home/loy/output.wav")
         rospy.loginfo("Creating audio stream")
-        self.stream = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
+        self._source = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
         rospy.loginfo("Opening audio stream")
-        self.stream.open()
+        self._source.open()
 
         rospy.loginfo("Setting up ASR, may take a while...")
         self._asr = Asr(model_dir=os.path.expanduser(rospy.get_param('~model_dir')),
                         model_type=rospy.get_param('~model_type', 'nnet3'),
-                        stream=self.stream)
+                        stream=self._source)
         rospy.loginfo("Set up ASR")
 
         self._asr.register_fully_recognized_callback(self.string_fully_recognized_callback)
@@ -35,14 +35,14 @@ class HMIServerYapykaldi(AbstractHMIServer):
         self._completed_string = ""
         self._speech_stopped = Event()
 
-        self.timeout_timer = None
+        self._voice_timer = None
 
         super(HMIServerYapykaldi, self).__init__(rospy.get_name())
 
     def stop(self):
         rospy.loginfo("Stopping {}".format(self))
         self._asr.stop()
-        self.stream.close()
+        self._source.close()
 
     def string_fully_recognized_callback(self, string):
         # type: (str) -> None
@@ -59,7 +59,8 @@ class HMIServerYapykaldi(AbstractHMIServer):
 
         self._asr.stop()
         self._completed_string = self._partial_string
-        self.timeout_timer.shutdown()
+        if self._voice_timer:
+            self._voice_timer.shutdown()
 
     def string_partially_recognized_callback(self, string):
         # type: (str) -> None
@@ -69,16 +70,18 @@ class HMIServerYapykaldi(AbstractHMIServer):
         same = new == self._partial_string
         if not same:
             rospy.loginfo("Heard something new: '{}'".format(new))
-            if self.timeout_timer:
-                self.timeout_timer.shutdown()
-
+            if self._voice_timer:
+                self._voice_timer.shutdown()
+                self._voice_timer = None
+                rospy.loginfo("Shutdown voice_timer")
         else:
             rospy.logdebug("This string is NOT new: '{}' == '{}'"
                 .format(new, self._partial_string))
-            if self._partial_string:
-                self.timeout_timer = rospy.Timer(rospy.Duration(3),
-                                                 self._voice_timer_elapsed,
-                                                 oneshot=True)
+            if self._partial_string and not self._voice_timer:
+                self._voice_timer = rospy.Timer(rospy.Duration(1),
+                                                self._voice_timer_elapsed,
+                                                oneshot=True)
+                rospy.loginfo("Started voice_timer")
             # self._voice_timer_elapsed(None)
         self._partial_string = new
 
@@ -96,9 +99,9 @@ class HMIServerYapykaldi(AbstractHMIServer):
         rospy.loginfo("Need an answer from ASR for '{}'".format(description))
         self._completed_string = None
         self._speech_stopped.clear()
-        if self.timeout_timer:
-            self.timeout_timer.shutdown()
-        self.timeout_timer = None
+        if self._voice_timer:
+            self._voice_timer.shutdown()
+        self._voice_timer = None
 
         verify_grammar(grammar)
 
