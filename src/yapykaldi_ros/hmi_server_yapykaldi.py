@@ -46,14 +46,16 @@ class HMIServerYapykaldi(AbstractHMIServer):
 
     def string_fully_recognized_callback(self, string):
         # type: (str) -> None
-        rospy.loginfo("Got a string: '{}'".format(string))
+        rospy.loginfo("Got a complete string: '{}'".format(string))
         self._completed_string = string.strip()  # Using a threading primitive for this would be nicer!
 
     def _voice_timer_elapsed(self, *args):
         if not self._completed_string:
-            rospy.loginfo("Voice timer elapsed after not hearing something ew in a while")
+            rospy.loginfo("Voice timer elapsed after not hearing something new in a while, "
+                          "stopping ASR")
         else:
-            rospy.logdebug("Voice timer elapsed after not hearing something ew in a while")
+            rospy.logdebug("Voice timer elapsed after not hearing something new in a while, "
+                           "stopping ASR")
 
         self._asr.stop()
         self._completed_string = self._partial_string
