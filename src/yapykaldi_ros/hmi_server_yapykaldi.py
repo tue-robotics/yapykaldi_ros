@@ -28,8 +28,8 @@ class HMIServerYapykaldi(AbstractHMIServer):
                         stream=self._source)
         rospy.loginfo("Set up ASR")
 
-        self._asr.register_fully_recognized_callback(self.string_fully_recognized_callback)
-        self._asr.register_partially_recognized_callback(self.string_partially_recognized_callback)
+        self._asr.register_callback(self.string_fully_recognized_callback)
+        self._asr.register_callback(self.string_partially_recognized_callback, partial=True)
 
         self._partial_string = ""
         self._completed_string = ""
