@@ -5,8 +5,7 @@ import os
 import rospy
 from threading import Event
 from yapykaldi.asr import Asr
-from yapykaldi.audio_handling.sources import WaveFileSource, PyAudioMicrophoneSource
-from yapykaldi.audio_handling.sinks import WaveFileSink
+from yapykaldi.io import WaveFileSource, PyAudioMicrophoneSource, WaveFileSink
 
 from .rospy_logging import route_logger_to_ros
 
