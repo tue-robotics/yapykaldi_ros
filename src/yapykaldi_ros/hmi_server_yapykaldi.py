@@ -15,7 +15,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
 
-        # route_logger_to_ros('YAPYKALDI_LOGGER_NAME')
+        # route_logger_to_ros(YAPYKALDI_LOGGER_NAME)
         # self.stream = WaveFileSource("/home/loy/output.wav")
         rospy.loginfo("Creating audio stream")
         self._source = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
