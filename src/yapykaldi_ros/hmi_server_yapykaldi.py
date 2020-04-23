@@ -6,6 +6,7 @@ import rospy
 from threading import Event
 from yapykaldi.asr import Asr
 from yapykaldi.io import WaveFileSource, PyAudioMicrophoneSource, WaveFileSink
+from yapykaldi.logger import LOGGER_NAME as YAPYKALDI_LOGGER_NAME
 
 from .rospy_logging import route_logger_to_ros
 
@@ -14,7 +15,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
 
-        # route_logger_to_ros('yapykaldi')
+        # route_logger_to_ros('YAPYKALDI_LOGGER_NAME')
         # self.stream = WaveFileSource("/home/loy/output.wav")
         rospy.loginfo("Creating audio stream")
         self._source = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
