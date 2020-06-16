@@ -1,12 +1,14 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 from hmi import AbstractHMIServer, HMIResult
 from hmi.common import parse_sentence, verify_grammar
+from grammar_parser.cfgparser import CFGParser
 import os
 import rospy
 from threading import Event
 from yapykaldi.asr import Asr
 from yapykaldi.audio_handling.sources import WaveFileSource, PyAudioMicrophoneSource
 from yapykaldi.audio_handling.sinks import WaveFileSink
+from yapykaldi_ros.cfg_kaldi_grammar import CfgKaldiGrammar
 
 from .rospy_logging import route_logger_to_ros
 
@@ -103,8 +105,12 @@ class HMIServerYapykaldi(AbstractHMIServer):
             self._voice_timer.shutdown()
         self._voice_timer = None
 
-        verify_grammar(grammar)
+        grammar_parser = CFGParser.fromstring(grammar)
+        grammar_parser.verify(target)
 
+        kaldi_grammar = CfgKaldiGrammar(cfg_parser=grammar_parser, target=target)
+        # TODO: Determine how to pass the Fst-generating CfgKaldiGrammar to yapykaldi.
+        # E.g. by passing it to `recognize`
         self._asr.start()
 
         self._asr.recognize()
