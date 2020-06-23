@@ -4,8 +4,7 @@ from hmi.common import parse_sentence, verify_grammar
 import os
 import rospy
 from threading import Event
-from yapykaldi.asr import Asr
-from yapykaldi.io import WaveFileSource, PyAudioMicrophoneSource, WaveFileSink
+from yapykaldi.asr import Asr, AsrPipeline, WaveFileSource, PyAudioMicrophoneSource, WaveFileSink
 from yapykaldi.logger import LOGGER_NAME as YAPYKALDI_LOGGER_NAME
 
 from .rospy_logging import route_logger_to_ros
@@ -14,35 +13,38 @@ from .rospy_logging import route_logger_to_ros
 class HMIServerYapykaldi(AbstractHMIServer):
     """HMI server wrapper yapykaldi ASR app"""
     def __init__(self):
+        super().__init__(rospy.get_name())
 
         # route_logger_to_ros(YAPYKALDI_LOGGER_NAME)
         # self.stream = WaveFileSource("/home/loy/output.wav")
         rospy.loginfo("Creating audio stream")
-        self._source = PyAudioMicrophoneSource(saver=WaveFileSink("/tmp/recording.wav"))
-        rospy.loginfo("Opening audio stream")
-        self._source.open()
+        self._source = PyAudioMicrophoneSource()
+        self._sink = WaveFileSink("/tmp/recording.wav")
 
         rospy.loginfo("Setting up ASR, may take a while...")
         self._asr = Asr(model_dir=os.path.expanduser(rospy.get_param('~model_dir')),
                         model_type=rospy.get_param('~model_type', 'nnet3'),
-                        stream=self._source)
+                        source=self._source,
+                        sink=self._sink)
         rospy.loginfo("Set up ASR")
 
         self._asr.register_callback(self.string_fully_recognized_callback)
         self._asr.register_callback(self.string_partially_recognized_callback, partial=True)
+
+        self._pipeline = AsrPipeline()
+        self._pipeline.add(self._asr, self._source, self._sink)
 
         self._partial_string = ""
         self._completed_string = ""
         self._speech_stopped = Event()
 
         self._voice_timer = None
-
-        super(HMIServerYapykaldi, self).__init__(rospy.get_name())
+        self._pipeline.open()
 
     def stop(self):
         rospy.loginfo("Stopping {}".format(self))
-        self._asr.stop()
-        self._source.close()
+        self._pipeline.stop()
+        self._pipeline.close()
 
     def string_fully_recognized_callback(self, string):
         # type: (str) -> None
@@ -57,7 +59,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
             rospy.logdebug("Voice timer elapsed after not hearing something new in a while, "
                            "stopping ASR")
 
-        self._asr.stop()
+        self._pipeline.stop()
         self._completed_string = self._partial_string
         if self._voice_timer:
             self._voice_timer.shutdown()
@@ -105,9 +107,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
 
         verify_grammar(grammar)
 
-        self._asr.start()
-
-        self._asr.recognize()
+        self._pipeline.start()
 
         while not rospy.is_shutdown() and \
                 not is_preempt_requested() and \
@@ -118,7 +118,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
 
         if rospy.is_shutdown() or is_preempt_requested():
             rospy.loginfo("Stop")
-            self._asr.stop()
+            self._pipeline.stop()
             return None
 
         rospy.loginfo("Received string: '%s'", self._completed_string)
@@ -128,7 +128,7 @@ class HMIServerYapykaldi(AbstractHMIServer):
         rospy.loginfo("Parsed semantics: %s", semantics)
 
         result = HMIResult(self._completed_string, semantics)
-        self._asr.stop()
+        self._pipeline.stop()
         self._completed_string = None
 
         return result
