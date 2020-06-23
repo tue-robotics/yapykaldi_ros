@@ -1,8 +1,13 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
-from builtins import *
-import rospy
-from yapykaldi import Asr
 from hmi import AbstractHMIServer, HMIResult
+from hmi.common import parse_sentence, verify_grammar
+import os
+import rospy
+from threading import Event
+from yapykaldi.asr import Asr, AsrPipeline, WaveFileSource, PyAudioMicrophoneSource, WaveFileSink
+from yapykaldi.logger import LOGGER_NAME as YAPYKALDI_LOGGER_NAME
+
+from .rospy_logging import route_logger_to_ros
 
 
 class HMIServerYapykaldi(AbstractHMIServer):
@@ -10,7 +15,80 @@ class HMIServerYapykaldi(AbstractHMIServer):
     def __init__(self):
         super().__init__(rospy.get_name())
 
+        # route_logger_to_ros(YAPYKALDI_LOGGER_NAME)
+        # self.stream = WaveFileSource("/home/loy/output.wav")
+        rospy.loginfo("Creating audio stream")
+        self._source = PyAudioMicrophoneSource()
+        self._sink = WaveFileSink("/tmp/recording.wav")
+
+        rospy.loginfo("Setting up ASR, may take a while...")
+        self._asr = Asr(model_dir=os.path.expanduser(rospy.get_param('~model_dir')),
+                        model_type=rospy.get_param('~model_type', 'nnet3'),
+                        source=self._source,
+                        sink=self._sink)
+        rospy.loginfo("Set up ASR")
+
+        self._asr.register_callback(self.string_fully_recognized_callback)
+        self._asr.register_callback(self.string_partially_recognized_callback, partial=True)
+
+        self._pipeline = AsrPipeline()
+        self._pipeline.add(self._asr, self._source, self._sink)
+
+        self._partial_string = ""
+        self._completed_string = ""
+        self._speech_stopped = Event()
+
+        self._voice_timer = None
+        self._pipeline.open()
+
+    def stop(self):
+        rospy.loginfo("Stopping {}".format(self))
+        self._pipeline.stop()
+        self._pipeline.close()
+
+    def string_fully_recognized_callback(self, string):
+        # type: (str) -> None
+        rospy.loginfo("Got a complete string: '{}'".format(string))
+        self._completed_string = string.strip()  # Using a threading primitive for this would be nicer!
+
+    def _voice_timer_elapsed(self, *args):
+        if not self._completed_string:
+            rospy.loginfo("Voice timer elapsed after not hearing something new in a while, "
+                          "stopping ASR")
+        else:
+            rospy.logdebug("Voice timer elapsed after not hearing something new in a while, "
+                           "stopping ASR")
+
+        self._pipeline.stop()
+        self._completed_string = self._partial_string
+        if self._voice_timer:
+            self._voice_timer.shutdown()
+
+    def string_partially_recognized_callback(self, string):
+        # type: (str) -> None
+        # rospy.loginfo("Got an intermediate result string: '{}'".format(string))
+
+        new = string.strip()
+        same = new == self._partial_string
+        if not same:
+            rospy.loginfo("Heard something new: '{}'".format(new))
+            if self._voice_timer:
+                self._voice_timer.shutdown()
+                self._voice_timer = None
+                rospy.loginfo("Shutdown voice_timer")
+        else:
+            rospy.logdebug("This string is NOT new: '{}' == '{}'"
+                .format(new, self._partial_string))
+            if self._partial_string and not self._voice_timer:
+                self._voice_timer = rospy.Timer(rospy.Duration(1),
+                                                self._voice_timer_elapsed,
+                                                oneshot=True)
+                rospy.loginfo("Started voice_timer")
+            # self._voice_timer_elapsed(None)
+        self._partial_string = new
+
     def _determine_answer(self, description, grammar, target, is_preempt_requested):
+        # type: (str, str, str, Func) -> None
         """
         Method override to start speech recognition upon receiving a query
         from the HMI server
@@ -20,3 +98,37 @@ class HMIServerYapykaldi(AbstractHMIServer):
         :param target: (str) target that should be obtained from the grammar
         :param is_preempt_requested: (callable) checks whether a preempt is requested by the hmi client
         """
+        rospy.loginfo("Need an answer from ASR for '{}'".format(description))
+        self._completed_string = None
+        self._speech_stopped.clear()
+        if self._voice_timer:
+            self._voice_timer.shutdown()
+        self._voice_timer = None
+
+        verify_grammar(grammar)
+
+        self._pipeline.start()
+
+        while not rospy.is_shutdown() and \
+                not is_preempt_requested() and \
+                not self._completed_string and \
+                not self._speech_stopped.is_set():
+            rospy.logdebug("Sleep")
+            rospy.sleep(.1)
+
+        if rospy.is_shutdown() or is_preempt_requested():
+            rospy.loginfo("Stop")
+            self._pipeline.stop()
+            return None
+
+        rospy.loginfo("Received string: '%s'", self._completed_string)
+
+        semantics = parse_sentence(self._completed_string, grammar, target)
+
+        rospy.loginfo("Parsed semantics: %s", semantics)
+
+        result = HMIResult(self._completed_string, semantics)
+        self._pipeline.stop()
+        self._completed_string = None
+
+        return result
